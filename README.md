@@ -1,6 +1,6 @@
 # Nitro: A Decentralised Binary Options Exchange Protocol
 
-*Nitro is a binary options exchange protocol that allows uses to trade binary options in a decentralized way.*
+**Nitro is a binary options exchange protocol that allows uses to trade binary options in a decentralized way.**
 
 While the protocol may be unregulated, it is 100% transparent. Once a contract is deployed onto the blockchain it is tamper proof. All contract code will open-sourced and can be publicly verified, thus ensuring an environment of fair play.
 
