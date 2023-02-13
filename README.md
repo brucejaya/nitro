@@ -15,16 +15,6 @@ Democratic ownership and voting rights via governance tokens.
 Earn governance tokens for using the protocol.
 Profit is shared with the community.
 
-In the DEBOX protocol, instead of providing liquidity to traders via a centralised bank account, liquidity is provided on-chain by Liquidity Providers (LPs) who stake tokens. Staking is the process of locking up tokens in a smart contract, providing liquidity to a protocol. Users who stake a given token earn interest, generating passive income. 
+In the nitro protocol, instead of providing liquidity to traders via a centralised bank account, liquidity is provided on-chain by Liquidity Providers (LPs) who stake tokens. Staking is the process of locking up tokens in a smart contract, providing liquidity to a protocol. Users who stake a given token earn interest, generating passive income. 
 
-In the case of the DEBOX protocol, users can stake a certain token, for example, ETH. By depositing ETH into the liquidity pool via the smart contract, LPs enable options trading. When a trader calls incorrectly and is “out-of-the-money” the liquidity pool takes a profit. When a trader calls correctly and is “in-the-money” the liquidity pool loses profit. 
-
-Minimal risk
-High returns
-Passive income
-Single token staking
-No impermanent loss
-Potential for yield farming (finding and staking particularly profitable liquidity pools)
-Earn governance tokens
-
-In the DEBOX protocol, the odds are always slightly in favour of the liquidity pool. This is essential to the success of the protocol as if not, the liquidity pool would slowly be drained of tokens. This would incapacitate the protocol as there would no longer be an incentive for liquidity providers and there would no longer be any liquidity to pay successful trades out of. As long as the odds are always slightly in favour of the house, while individual traders may receive big pay-outs, the liquidity pool will earn money in the long term.
+In the case of the nitro protocol, users can stake a certain token, for example, ETH. By depositing ETH into the liquidity pool via the smart contract, LPs enable options trading. When a trader calls incorrectly and is “out-of-the-money” the liquidity pool takes a profit. When a trader calls correctly and is “in-the-money” the liquidity pool loses profit. 
