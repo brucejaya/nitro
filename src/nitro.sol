@@ -43,8 +43,6 @@ contract Nitro is Ownable {
 
     mapping(address => mapping(bytes32 => Prediction)) public predictions;
 
-// ETC #TODO merge 
-	
     address public constant LINK_TOKEN = 0x01BE23585060835E02B77ef475b0Cc51aA1e0709;// polygon 0xb0897686c545045aFc77CF20eC7A532E3120E0F1;
     address public constant VRF_COORDINATOR = 0xb3dCcb4Cf7a26f6cf6B120Cf5A73875B7BBc655B;// polygon 0x3d2341ADb2D31f1c5530cDC622016af293177AE0;
     bytes32 public constant KEY_HASH = 0x2ed0feb3e7fd2022120aa84fab1945545a9f2ffc9076fd6156fa96eaff4c1311;// polygon 0xf86195cf7690c55907b2b611ebb7343a6f649bff128701cc542f0569e2c549da;
@@ -66,7 +64,6 @@ contract Nitro is Ownable {
 
     uint256 public lockedInTrades;
 
-
     Trade[] public Trades;
 
     uint256 public TradesLength;
@@ -82,7 +79,6 @@ contract Nitro is Ownable {
     {
         
     }
-
 
     function getOutcomeBalance(
 		bytes32 identifier,
@@ -135,7 +131,9 @@ contract Nitro is Ownable {
 		Outcome outcome
 	) 
         isValidOutcome(outcome)
-        payable returns(bool success) {
+        payable
+        returns(bool success)
+    {
 
         // Must back your prediction
         require(msg.value > 0);
