@@ -1,317 +1,117 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.8.1;
+pragma solidity ^0.8.7;
 
-import 'open-zeppelin/contracts/access/Ownable.sol';
+import 'chainlink-develop/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol';
 
-contract Nitro is Ownable {
+// Deviation Threshold	Chainlink nodes are monitoring data off-chain. The deviation of the real-world data beyond a certain interval triggers all the nodes to update.
+// Heartbeat Threshold	If the data values stay within the deviation parameters, it will only trigger an update every X minutes / hours.
 
-    ////////////////
-    // STATES
-    ////////////////
+contract Nitro {
 
 	// Position for the trade
-    enum Position {
-		Call,
-		Put
+	struct Position {
+		address user; // Address of trader
+		bool position; // True if call, False if put 
+		uint256 amount; // Amount placed on trade
+		
 	}
 
-	// Outcome of the trade
-    enum Outcome {
-		Unresolved,
-		Call,
-		Put,
-		Undecided
-	}
-
+	// Trade
     struct Trade {
-        string description;
-        uint256 expiryBlock;
-        bool resolved;
-        Outcome outcome;
-        uint256 totalBalance;                
-        mapping(uint256 => uint256) balances; // Outcome => balance
+		uint256 placed; // Price round id when trade placed
+        uint256 expires; // Price round id when trade expires
+		Struct[] positions;
     }
 
-    struct Prediction {
-        uint256 amount;
-        Position position;
-        bool paidOut;
+	Trade[] _trades; 
+
+	mapping(uint256 => uint256[]) _tradesByExpiry; // Mapping from expiry roundId to trades id
+	mapping(address => uint256[]) _allTradesByUser; // Mapping of trades by user address
+	mapping(address => uint256[]) _openTradesByUser; // Mapping of open trades by user address
+
+	// Price data
+	struct Price {
+		bool exists;
+		int price;
+		uint startedAt;
+		uint timeStamp;
+		uint80 answeredInRound;
+	}
+
+	mapping(bytes32 => Price[]) _priceRounds; // Mapping from name of price fee to price data
+	mapping(bytes32 => uint256) _latestRound; // Mapping from name to lastes price roundId
+
+	mapping(bytes32 => AggregatorV3Interface) _priceFeeds; // Mapping from name to price feed: ETH/USD => 0xD4a33860578De61DBAbDc8BFdb98FD742fA7028e (Goerli)
+
+    constructor(
+		address priceFeeds
+	) {
+		for ($i = 0; $i < $priceFeeds.length; $i++) {
+			_allPriceFeeds.push(AggregatorV3Interface($priceFeeds[$i]));
+		}
     }
 
-    mapping(bytes32 => Trade) public trades;
-
-    mapping(address => mapping(bytes32 => Prediction)) public predictions;
-
-    address public constant LINK_TOKEN = 0x01BE23585060835E02B77ef475b0Cc51aA1e0709;// polygon 0xb0897686c545045aFc77CF20eC7A532E3120E0F1;
-    address public constant VRF_COORDINATOR = 0xb3dCcb4Cf7a26f6cf6B120Cf5A73875B7BBc655B;// polygon 0x3d2341ADb2D31f1c5530cDC622016af293177AE0;
-    bytes32 public constant KEY_HASH = 0x2ed0feb3e7fd2022120aa84fab1945545a9f2ffc9076fd6156fa96eaff4c1311;// polygon 0xf86195cf7690c55907b2b611ebb7343a6f649bff128701cc542f0569e2c549da;
-    
-    uint256 public chainlinkFee = 0.1 * 10 ** 18;
-
-    uint256 public houseEdgePercent = 1;
-
-    uint256 public cumulativeDeposit;
-    uint256 public cumulativeWithdrawal;
-
-    uint256 public wealthTaxIncrementThreshold = 3000 ether;
-    uint256 public wealthTaxIncrementPercent = 1;
-
-    uint256 public minTradeAmount = 0.001 ether;
-    uint256 public maxTradeAmount = 100 ether;
-
-    uint256 public maxProfit = 3000 ether;
-
-    uint256 public lockedInTrades;
-
-    Trade[] public Trades;
-
-    uint256 public TradesLength;
-
-    //////////////////////////////////////////////
-    // FUNCTIONS
-    //////////////////////////////////////////////
-
-    function openPosition(
-        
-    )
-        
-    {
-        
-    }
-
-    function getOutcomeBalance(
-		bytes32 identifier,
-		Outcome outcome
+	// @notice Returns the latest price and rebuilds internal price data record
+    function getLatestPrice(
+		bytes32 name
 	)
-        isValidOutcome(outcome)
-        public 
-        constant 
-        returns(uint256 balance)
+		public
+		view
+		returns (int)
 	{
-		return trades[identifier].balances[uint256(outcome)];
+		// Get latest round data
+        (uint80 roundID, int price, uint startedAt, uint timeStamp, uint80 answeredInRound) = priceFeed[name].latestRoundData();
+		
+		// Check if price data has already been added to _priceRounds
+		if (!_priceRounds[name][roundID].exists) {
+
+			// Add price data to _priceRounds
+			_priceRounds[name][roundID].exists = true;
+			_priceRounds[name][roundID].price = price;
+			_priceRounds[name][roundID].startedAt = startedAt;
+			_priceRounds[name][roundID].timeStamp = timeStamp;
+			_priceRounds[name][roundID].answeredInRound = answeredInRound;
+		}
+
+        return price;
     }
 
-    function getTotalBalance(bytes32 identifier) 
-        public
-        constant 
-        returns(uint256 totalBalance)
-	{
-		return trades[identifier].totalBalance;
-    }    
-        
-    function addTrade(
-		bytes32 identifier,
-		string description,
-		uint256 durationInBlocks
+	// @notice Returns historic price data and rebuilds internal price data record
+    function getHistoricPrice(
+		bytes32 name,
+		uint256 roundId
 	)
-        public
-        onlyOwner
-		returns(bool success)
+		public
+		view
+		returns (int)
 	{
-        // Don't allow options with Put expiry
-        require(durationInBlocks > 0);
+		// Get latest round data
+        (uint80 roundID, int price, uint startedAt, uint timeStamp, uint80 answeredInRound) = priceFeed[name].getRoundData(roundId);
+		
+		// Check if price data has already been added to _priceRounds
+		if (!_priceRounds[name][roundID].exists) {
+			
+			// Add price data to _priceRounds
+			_priceRounds[name][roundID].exists = true;
+			_priceRounds[name][roundID].price = price;
+			_priceRounds[name][roundID].startedAt = startedAt;
+			_priceRounds[name][roundID].timeStamp = timeStamp;
+			_priceRounds[name][roundID].answeredInRound = answeredInRound;
+		}
 
-        // Check that this option does Putt exist already
-        require(trades[identifier].expiryBlock == 0);
-
-        Trade memory option;
-        option.expiryBlock = block.number + durationInBlocks;
-        option.description = description;
-        option.resolved = false;
-        option.outcome = Outcome.Unresolved;
-
-        trades[identifier] = option;
-
-        return true;
+        return price;
     }
 
-    function predict(
-		bytes32 identifier, 
-		Outcome outcome
-	) 
-        isValidOutcome(outcome)
-        payable
-        returns(bool success)
-    {
-
-        // Must back your prediction
-        require(msg.value > 0);
-
-        // Require that the option exists
-        require(trades[identifier].expiryBlock > 0);
-
-        // Require that the option has Putt expired
-        require(trades[identifier].expiryBlock >= block.number);
-
-        // Require that the option has Putt been resolved
-        require(!trades[identifier].resolved);
-
-        // Don't allow duplicate bets
-        require(predictions[msg.sender][identifier].amount == 0);
-
-        Trade storage option = trades[identifier];
-
-        option.balances[uint256(outcome)] += msg.value;
-        option.totalBalance += msg.value;
-
-        Prediction memory prediction;
-        prediction.amount = msg.value;
-        prediction.predictedOutcome = outcome;
-        predictions[msg.sender][identifier] = prediction;
-
-        return true;
-    }
-
-    // Mark the option as resolved so that an outcome can be set
-    // This must be done in a separate block from setting an outcome
-    function resolveTrade(
-		bytes32 identifier
-	) 
-        onlyOwner
-        public 
-        returns(bool success) {
-
-        Trade storage option = trades[identifier];
-        option.resolved = true;
-        
-        return true;
-    }
-
-    function setOptioPututcome(
-		bytes32 identifier,
-		Outcome outcome
-	) 
-        onlyOwner
-        public
-        returns(bool success) {
-        
-        require(outcome == Outcome.Call || outcome == Outcome.Put || outcome == Outcome.Undecided);
-        
-        Trade storage option = trades[identifier];
-        
-        require(option.resolved);
-        
-        option.outcome = outcome;
-        
-        return true;        
-    }
-
-    function requestPayout(
-		bytes32 identifier
+	// @notice Resolve trades
+    function resolveLatestRound(
+		uint256[] memory tradeIds
 	)
-        public 
-        returns(bool success) {
-        
-        Trade storage option = trades[identifier];
+		public
+	{
 
-        // Option must exist
-        require(option.expiryBlock > 0);
 
-        Prediction storage prediction = predictions[msg.sender][identifier];
-        
-        // Prediction must exist
-        require(prediction.amount > 0);
-
-        // Don't pay out twice
-        require(!prediction.paidOut);
-        
-        // If the outcome has Putt been resolved, require that the option has expired
-        if(!option.resolved) {
-            require(option.expiryBlock > block.number);
-        }
-        
-        uint256 totalBalance = option.totalBalance;
-        uint256 outcomeBalance = getOutcomeBalance(identifier, prediction.predictedOutcome);
-
-        // Scaling factor of the outcome pool to the total balance
-        uint256 r = 1;
-
-        if (option.outcome != Outcome.Undecided) {
-            // If the outcome was Putt undecided, they must have predicted the correct outcome
-            require(prediction.predictedOutcome == option.outcome);
-            
-            r = totalBalance / outcomeBalance;
-        }
-        
-        uint256 payoutAmount = r * prediction.amount;
-
-        prediction.paidOut = true;
-        option.totalBalance -= payoutAmount;
-        msg.sender.transfer(payoutAmount);
-        
-        return true;
-    }
-
-    modifier isValidOutcome(Outcome outcome) {
-        require(outcome == Outcome.Call || outcome == Outcome.Put);
-        _;
-    }
-
+		
+	}
 	
-    //////////////////////////////////////////////
-    // OWNER FUNCTIONS
-    //////////////////////////////////////////////
-
-    function balanceETH()
-        external
-        view
-        returns (uint256)
-    {
-        return address(this).balance;
-    }
-
-    function balanceLINK()
-        external
-        view
-        returns (uint256)
-    {
-        return LINK.balanceOf(address(this));
-    }
-
-    function withdrawFunds(
-        address payable beneficiary,
-        uint256 withdrawAmount
-    )
-        external
-        onlyOwner
-    {
-        require(withdrawAmount <= address(this).balance, "Withdrawal amount larger than balance.");
-        require(withdrawAmount <= address(this).balance - lockedInTrades, "Withdrawal amount larger than balance minus lockedInTrades");
-        beneficiary.transfer(withdrawAmount);
-        cumulativeWithdrawal += withdrawAmount;
-    }
-
-    function withdrawTokens(
-        address token_address
-    )
-        external
-        onlyOwner
-    {
-        IERC20(token_address).safeTransfer(owner(), IERC20(token_address).balanceOf(address(this)));
-    }
-    
-    function withdrawAll()
-        external
-        onlyOwner
-    {
-        uint256 withdrawAmount = address(this).balance - lockedInTrades;
-        cumulativeWithdrawal += withdrawAmount;
-        msg.sender.transfer(withdrawAmount);
-        IERC20(LINK_TOKEN).safeTransfer(owner(), IERC20(LINK_TOKEN).balanceOf(address(this)));
-    }
-    
-    fallback()
-        external
-        payable
-    {
-        cumulativeDeposit += msg.value;
-    }
-    receive()
-        external
-        payable
-    {
-        cumulativeDeposit += msg.value;
-    }
-}
 }
